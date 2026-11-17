@@ -31,6 +31,10 @@ label.t{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:13px
 .task{font-weight:600}
 textarea{width:100%;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--surf);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;resize:vertical}
 .hint{color:var(--mute);font-size:12px;align-self:center}
+details{margin-bottom:10px}
+summary{cursor:pointer;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surf);list-style:none}
+summary::-webkit-details-marker{display:none}
+details[open] summary{margin-bottom:10px}
 #stick{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-bottom:4px}
 .clock{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
 .clock input{flex:1}
@@ -50,13 +54,15 @@ textarea{width:100%;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;backgrou
 <div class="tabs" id="tabs"></div>
 <div class="bar">
 <button id="plan" class="on">Plan my day</button>
-<button id="shuf">Shuffle meetings</button>
-<button id="rst">Reset day</button>
+<button id="shuf">Shuffle</button>
+<button id="rst">Reset</button>
 <label class="t"><input type="checkbox" id="sl" checked> Keep slack</label>
 </div>
+<details id="ed"><summary>Edit tasks</summary>
+<div class="tasks" id="tasks"></div>
 <textarea id="txt" rows="6" spellcheck="false" aria-label="Task list"></textarea>
 <div class="bar"><button id="apply">Update tasks</button><span class="hint">One per line: Name (90m), Name (3h) or Name,90</span></div>
-<div class="tasks" id="tasks"></div>
+</details>
 <div id="stick"><div class="clock"><label for="nw">Now</label><input type="range" id="nw" min="540" max="1020" step="15" value="540"><b id="nv">9:00a</b><span class="hint" id="nh"></span></div><div id="act"></div></div>
 <div class="tl" id="tl"></div>
 <p class="sum" id="sum"></p>
