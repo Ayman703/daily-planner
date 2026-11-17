@@ -35,6 +35,20 @@ details{margin-bottom:10px}
 summary{cursor:pointer;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surf);list-style:none}
 summary::-webkit-details-marker{display:none}
 details[open] summary{margin-bottom:10px}
+.qa{display:flex;gap:8px;margin-bottom:6px}
+.qa input{flex:1;min-width:0;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surf);color:var(--ink)}
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.pills button{border-radius:999px;padding:6px 12px}
+.trow{display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:10px;padding:6px 8px 6px 12px;margin-bottom:6px;color:var(--ink)}
+.tn{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.dn{text-decoration:line-through;opacity:.6}
+.st{display:flex;align-items:center;gap:4px;flex:none}
+.st button{padding:4px 10px;border-radius:8px;line-height:1.2}
+.st b{min-width:56px;text-align:center;font-weight:600;font-size:13px}
+p.hint{margin:0 0 8px}
+.err{color:#e0584f;font-size:12px;margin:0 0 6px}
+.err:empty{display:none}
+details details{margin-top:10px}
 #stick{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-bottom:4px}
 .clock{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
 .clock input{flex:1}
@@ -58,10 +72,17 @@ details[open] summary{margin-bottom:10px}
 <button id="rst">Reset</button>
 <label class="t"><input type="checkbox" id="sl" checked> Keep slack</label>
 </div>
-<details id="ed"><summary>Edit tasks</summary>
-<div class="tasks" id="tasks"></div>
-<textarea id="txt" rows="6" spellcheck="false" aria-label="Task list"></textarea>
-<div class="bar"><button id="apply">Update tasks</button><span class="hint">One per line: Name (90m), Name (3h) or Name,90</span></div>
+<details id="ed"><summary id="sumt">Edit tasks</summary>
+<p class="hint" id="tot"></p>
+<div class="qa"><input id="qn" placeholder="Task name" aria-label="Task name" autocomplete="off"><button id="qadd" class="on">Add</button></div>
+<p class="err" id="qe"></p>
+<div class="pills" id="pills"></div>
+<div id="tasks"></div>
+<details id="pd"><summary>Paste a list</summary>
+<textarea id="txt" rows="5" spellcheck="false" placeholder="- Write proposal (3h)&#10;Fix login bug" aria-label="Paste tasks"></textarea>
+<div id="prev"></div>
+<div class="bar"><button id="apply" class="on">Import</button></div>
+</details>
 </details>
 <div id="stick"><div class="clock"><label for="nw">Now</label><input type="range" id="nw" min="540" max="1020" step="15" value="540"><b id="nv">9:00a</b><span class="hint" id="nh"></span></div><div id="act"></div></div>
 <div class="tl" id="tl"></div>
@@ -125,7 +146,7 @@ const f=m=>{const h=Math.floor(m/60),mm=m%60;return(h>12?h-12:h)+":"+String(mm).
 function box(s,e,cls,html,st){return`<div class="blk ${cls}" style="top:${(s-D0)*PX+1}px;height:${(e-s)*PX-2}px;${st||""}">${html}</div>`}
 function render(){
 document.getElementById("tabs").innerHTML=DAYS.map((d,i)=>`<button class="${i==day?"on":""}" data-d="${i}">${d}</button>`).join("");
-document.getElementById("tasks").innerHTML=TASKS.map(t=>{const d=S0().done[t.id],ex=S0().extra[t.id]||0;return`<span class="chip" style="background:var(--c${t.c});${d?"text-decoration:line-through;opacity:.6":""}">${t.n} · ${t.m+ex}m${ex?" (+"+ex+")":""}</span>`}).join("");
+document.getElementById("tasks").innerHTML=TASKS.map(t=>rowHtml(t)).join("");
 const SS=S0(),nowT=day===0?now:D0,ms=gen(seeds[day]),gs=gaps(ms).map(g=>[Math.max(g[0],SS.t0),g[1]]).filter(g=>g[1]-g[0]>=10),sl=document.getElementById("sl").checked;
 let h="";for(let m=D0;m<D1;m+=60)h+=`<div class="hr" style="top:${(m-D0)*PX}px">${f(m)}</div>`;
 for(const m of ms)h+=box(m.s,m.e,"meet",`${m.n}${m.e-m.s>=30?`<small>${f(m.s)}–${f(m.e)}</small>`:""}`);
@@ -148,6 +169,9 @@ document.getElementById("sum").textContent=`${free} min open across ${gs.length}
 if(nowT>D0)h+=`<div class="past" style="height:${(nowT-D0)*PX}px"></div><div class="nowl" style="top:${(nowT-D0)*PX}px"></div>`;
 document.getElementById("tl").innerHTML=h;
 document.getElementById("nv").textContent=f(now);
+{const need=TASKS.reduce((a,t)=>SS.done[t.id]?a:a+Math.max(0,t.m+(SS.extra[t.id]||0)-(SS.worked[t.id]||0)),0),fr=gs.reduce((a,g)=>a+g[1]-g[0],0);
+document.getElementById("tot").textContent=`${fm(need)} of tasks, ${fm(fr)} free`+(need>fr?` (over by ${fm(need-fr)})`:"");
+document.getElementById("sumt").textContent=`Edit tasks (${TASKS.length})`}
 document.getElementById("nh").textContent=day===0?"Mon is today":"Clock applies to Mon";
 renderAct();
 }
@@ -194,10 +218,31 @@ else if(k==="pull"){S.hold={};offer=null}
 else if(k==="keep"){offer=null}
 else sel=null;
 render()};
-const saved=load();
-document.getElementById("txt").value=saved!==null?saved:DEFAULT_TXT;
-TASKS=parse(document.getElementById("txt").value);
-document.getElementById("apply").onclick=()=>{const v=document.getElementById("txt").value;save(v);TASKS=parse(v);planned=true;render()};
+TASKS=parse(load()!==null?load():DEFAULT_TXT);
+let qd=60,nid=TASKS.length+1;
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+function fm(m){const h=Math.floor(m/60),r=m%60;return(h?h+"h":"")+(h&&r?" ":"")+(r||!h?r+"m":"")}
+function saveTasks(){save(TASKS.map(t=>"- "+t.n+" ("+t.m+"m)").join("\n"))}
+function addTask(n,m){const id=nid++;TASKS.push({id,n,m,c:(id-1)%6+1,q:m<=15?1:0});saveTasks()}
+function rowHtml(t){const S=S0(),ex=S.extra[t.id]||0;
+return`<div class="trow" style="background:var(--c${t.c})"><span class="tn${S.done[t.id]?" dn":""}">${esc(t.n)}</span><span class="st"><button data-k="-" data-i="${t.id}" aria-label="Shorter">−</button><b>${fm(t.m+ex)}</b><button data-k="+" data-i="${t.id}" aria-label="Longer">+</button><button data-k="x" data-i="${t.id}" aria-label="Remove task">×</button></span></div>`}
+function pills(){document.getElementById("pills").innerHTML=[15,30,60,120,180].map(m=>`<button data-m="${m}" class="${m===qd?"on":""}">${fm(m)}</button>`).join("")}
+function parseLoose(txt){const out=[];for(let line of txt.split("\n")){line=line.replace(/^\s*[-*]\s*/,"").trim();if(!line)continue;
+const p=parse(line);if(p.length){out.push({n:p[0].n,m:p[0].m});continue}
+out.push({n:line,m:30,g:1})}return out}
+document.getElementById("pills").onclick=e=>{const b=e.target.closest("[data-m]");if(b){qd=+b.dataset.m;pills()}};
+const qn=document.getElementById("qn"),qe=document.getElementById("qe");
+function qadd(){const n=qn.value.trim();if(!n){qe.textContent="Enter a task name";qn.focus();return}addTask(n,qd);qn.value="";qe.textContent="";planned=true;render()}
+document.getElementById("qadd").onclick=qadd;
+qn.onkeydown=e=>{if(e.key==="Enter")qadd()};
+qn.oninput=()=>{qe.textContent=""};
+document.getElementById("tasks").onclick=e=>{const b=e.target.closest("[data-k]");if(!b)return;const i=TASKS.findIndex(t=>t.id===+b.dataset.i);if(i<0)return;const k=b.dataset.k;
+if(k==="+")TASKS[i].m+=15;else if(k==="-")TASKS[i].m=Math.max(15,TASKS[i].m-15);else TASKS.splice(i,1);
+saveTasks();render()};
+const tx=document.getElementById("txt"),pv=document.getElementById("prev");
+tx.oninput=()=>{const it=parseLoose(tx.value);pv.innerHTML=it.map(x=>`<div class="trow" style="background:var(--${x.g?"slack":"c1"})"><span class="tn">${esc(x.n)}${x.g?"<br><small class=hint>No time found, using 30m</small>":""}</span><b>${fm(x.m)}</b></div>`).join("")+(it.length?`<p class="hint">${it.length} tasks, ${fm(it.reduce((a,x)=>a+x.m,0))} total</p>`:"")};
+document.getElementById("apply").onclick=()=>{const it=parseLoose(tx.value);if(!it.length){pv.innerHTML=`<p class="err">Paste at least one task</p>`;return}it.forEach(x=>addTask(x.n,x.m));tx.value="";pv.innerHTML="";document.getElementById("pd").open=false;planned=true;render()};
+pills();
 render();
 </script>
 </body>
