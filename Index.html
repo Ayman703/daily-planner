@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Timebox demo</title>
+<style>
+:root{--bg:#f5f3ee;--surf:#fffdf8;--ink:#1f2a24;--mute:#6b746e;--line:#dcd8cc;--meet:#d9d5c8;--meetink:#4a4f48;--slack:#f1e3b8;--accent:#1f6f5c;--c1:#bfe3d6;--c2:#cfd8f5;--c3:#f5d3c4;--c4:#e6d3f0;--c5:#f3e7a6;--c6:#c9e6ee;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a17;--surf:#1c2420;--ink:#e8ece9;--mute:#98a39c;--line:#2f3a34;--meet:#2c332f;--meetink:#b9c2bc;--slack:#4a4023;--accent:#5fc4a8;--c1:#25503f;--c2:#2b3560;--c3:#5c3a2c;--c4:#46305a;--c5:#585020;--c6:#244a56}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px}
+h1{font:600 22px/1.2 Georgia,"Times New Roman",serif;margin:4px 0 2px}
+.sub{color:var(--mute);margin:0 0 14px;font-size:13px}
+.tabs,.bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+button{font:inherit;border:1px solid var(--line);background:var(--surf);color:var(--ink);padding:8px 12px;border-radius:10px;cursor:pointer}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+label.t{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:13px;margin-left:auto}
+.tasks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chip{padding:4px 10px;border-radius:999px;font-size:13px;color:var(--ink)}
+.tl{position:relative;background:var(--surf);border:1px solid var(--line);border-radius:12px;margin-left:0;height:640px;overflow:hidden}
+.hr{position:absolute;left:0;right:0;border-top:1px solid var(--line);font-size:11px;color:var(--mute);padding:2px 0 0 6px}
+.blk{position:absolute;left:52px;right:8px;border-radius:8px;padding:4px 10px;font-size:13px;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+.blk small{color:inherit;opacity:.7;font-size:11px}
+.meet{background:var(--meet);color:var(--meetink);background-image:repeating-linear-gradient(135deg,transparent 0 6px,rgba(0,0,0,.04) 6px 12px)}
+.open{border:1.5px dashed var(--line);color:var(--mute)}
+.slack{background:var(--slack)}
+.task{font-weight:600}
+textarea{width:100%;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--surf);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;resize:vertical}
+.hint{color:var(--mute);font-size:12px;align-self:center}
+#stick{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-bottom:4px}
+.clock{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
+.clock input{flex:1}
+.past{position:absolute;left:0;right:0;top:0;background:var(--bg);opacity:.65;pointer-events:none}
+.nowl{position:absolute;left:0;right:0;border-top:2px solid var(--accent);pointer-events:none}
+.act{background:var(--surf);border:1px solid var(--accent);border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14px}
+.ab{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.blk.sel{outline:2px solid var(--accent);outline-offset:-2px}
+[data-id]{cursor:pointer}
+.sum{margin-top:12px;color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<h1>Timebox</h1>
+<p class="sub">Mock calendar. Tap a task block to mark it done or add time.</p>
+<div class="tabs" id="tabs"></div>
+<div class="bar">
+<button id="plan" class="on">Plan my day</button>
+<button id="shuf">Shuffle meetings</button>
+<button id="rst">Reset day</button>
+<label class="t"><input type="checkbox" id="sl" checked> Keep slack</label>
+</div>
+<textarea id="txt" rows="6" spellcheck="false" aria-label="Task list"></textarea>
+<div class="bar"><button id="apply">Update tasks</button><span class="hint">One per line: Name (90m), Name (3h) or Name,90</span></div>
+<div class="tasks" id="tasks"></div>
+<div id="stick"><div class="clock"><label for="nw">Now</label><input type="range" id="nw" min="540" max="1020" step="15" value="540"><b id="nv">9:00a</b><span class="hint" id="nh"></span></div><div id="act"></div></div>
+<div class="tl" id="tl"></div>
+<p class="sum" id="sum"></p>
+</main>
+<script>
+const D0=540,D1=1020,PX=640/(D1-D0);
+const DEFAULT_TXT="- Write proposal (3h)\n- Review pull requests (45m)\n- Plan sprint (1h)\n- Update docs (30m)\n- Reply to emails (15m)\n- Slack catch-up (15m)";
+let TASKS=[];
+function parse(txt){
+const out=[];
+for(let line of txt.split("\n")){
+line=line.replace(/^\s*[-*]\s*/,"").trim();if(!line)continue;
+let x=line.match(/^(.*?)\s*\(\s*(\d+(?:\.\d+)?)\s*(h|hr|hrs|m|min|mins)?\s*\)\s*$/i)||line.match(/^(.*?)\s*,\s*(\d+(?:\.\d+)?)\s*(h|hr|hrs|m|min|mins)?\s*$/i);
+if(!x||!x[1])continue;
+const u=(x[3]||"m").toLowerCase(),m=Math.max(5,Math.round(parseFloat(x[2])*(u[0]==="h"?60:1)));
+out.push({id:out.length+1,n:x[1],m,c:out.length%6+1,q:m<=15?1:0});
+}
+return out;
+}
+function load(){try{return localStorage.getItem("tb-tasks")}catch(e){return null}}
+function save(t){try{localStorage.setItem("tb-tasks",t)}catch(e){}}
+const NAMES=["Standup","Design review","1:1 with Sam","Team sync","Client call","Planning","Interview","Demo prep","Retro"];
+const DAYS=["Mon","Tue","Wed"];
+let day=0,seeds=[11,42,77],planned=true,sel=null,offer=null,dueId=null,curAll=[],now=540,st=[null,null,null];
+function S0(){return st[day]||(st[day]={done:{},hold:{},extra:{},worked:{},conf:{},past:[],t0:D0})}
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gen(seed){
+const r=rng(seed),ms=[{s:720,e:780,n:"Lunch",l:1}];
+const want=3+Math.floor(r()*2);let tries=0;
+while(ms.length<want+1&&tries++<80){
+const d=[15,30,45,60][Math.floor(r()*4)],s=D0+15*Math.floor(r()*((D1-D0-d)/15+1)),e=s+d;
+if(ms.every(m=>e<=m.s||s>=m.e))ms.push({s,e,n:NAMES[Math.floor(r()*NAMES.length)]});
+}
+return ms.sort((a,b)=>a.s-b.s);
+}
+function gaps(ms){let t=D0,o=[];for(const m of ms){if(m.s-t>=10)o.push([t,m.s]);t=Math.max(t,m.e)}if(D1-t>=10)o.push([t,D1]);return o}
+function plan(gs,slackOn){
+const S=S0(),rem=[],out=[];
+for(const t of TASKS){const tot=t.m+(S.extra[t.id]||0),left=tot-(S.worked[t.id]||0);
+if(left<=0||(S.done[t.id]&&!S.hold[t.id]))continue;
+rem.push({...t,left,part:S.worked[t.id]?1:0,q:tot<=15?1:0,freed:!!S.done[t.id]});}
+for(const[a,b]of gs){
+const len=b-a,sl=slackOn&&len>=30?5*Math.max(1,Math.floor(len/60)):0,end=b-sl;let cur=a;
+if(len<30){
+const t=rem.find(x=>x.q&&x.left>0&&x.left<=len);
+if(t){out.push({s:cur,e:cur+t.left,t});cur+=t.left;t.left=0}
+}else{
+for(const t of rem.filter(x=>!x.q).concat(rem.filter(x=>x.q))){
+if(t.left<=0)continue;const room=end-cur;if(room<15)break;
+const use=Math.min(t.left,room);if(t.left>use&&room-use<0)continue;
+out.push({s:cur,e:cur+use,t,part:t.part++,split:t.left>use});t.left-=use;cur+=use;
+}
+}
+if(end-cur>=5)out.push({s:cur,e:end,open:1});
+if(sl)out.push({s:end,e:b,slack:1});
+}
+return{out,rem};
+}
+const f=m=>{const h=Math.floor(m/60),mm=m%60;return(h>12?h-12:h)+":"+String(mm).padStart(2,"0")+(h>=12?"p":"a")};
+function box(s,e,cls,html,st){return`<div class="blk ${cls}" style="top:${(s-D0)*PX+1}px;height:${(e-s)*PX-2}px;${st||""}">${html}</div>`}
+function render(){
+document.getElementById("tabs").innerHTML=DAYS.map((d,i)=>`<button class="${i==day?"on":""}" data-d="${i}">${d}</button>`).join("");
+document.getElementById("tasks").innerHTML=TASKS.map(t=>{const d=S0().done[t.id],ex=S0().extra[t.id]||0;return`<span class="chip" style="background:var(--c${t.c});${d?"text-decoration:line-through;opacity:.6":""}">${t.n} · ${t.m+ex}m${ex?" (+"+ex+")":""}</span>`}).join("");
+const SS=S0(),nowT=day===0?now:D0,ms=gen(seeds[day]),gs=gaps(ms).map(g=>[Math.max(g[0],SS.t0),g[1]]).filter(g=>g[1]-g[0]>=10),sl=document.getElementById("sl").checked;
+let h="";for(let m=D0;m<D1;m+=60)h+=`<div class="hr" style="top:${(m-D0)*PX}px">${f(m)}</div>`;
+for(const m of ms)h+=box(m.s,m.e,"meet",`${m.n}${m.e-m.s>=30?`<small>${f(m.s)}–${f(m.e)}</small>`:""}`);
+let free=0,placed=0,slk=0;
+if(planned){
+const p=plan(gs,sl);
+curAll=SS.past.concat(p.out);for(const b of curAll){
+const d=b.e-b.s;
+if(b.slack){slk+=d;h+=box(b.s,b.e,"slack",d>=15?"Slack: email &amp; buffer":"",d<15?"font-size:10px;padding:0 10px":"")}
+else if(b.open){free+=d;h+=box(b.s,b.e,"open",d>=15?"Open":"")}
+else if(b.t.freed){free+=d;h+=box(b.s,b.e,"open",d>=15?`Freed: ${b.t.n}`:"")}
+else{placed+=d;h+=box(b.s,b.e,"task"+(sel===b.t.id?" sel":""),`${b.t.n}${b.part>0?" (cont.)":""}${d>=30?`<small>${f(b.s)}–${f(b.e)}</small>`:""}`,`background:var(--c${b.t.c})`).replace('class="blk','data-id="'+b.t.id+'" class="blk')}
+}
+const un=p.rem.filter(t=>t.left>0&&!t.freed);
+document.getElementById("sum").textContent=`${Object.keys(S0().done).length} done. ${placed} min planned, ${slk} min slack, ${free} min open.`+(un.length?` Didn't fit: ${un.map(t=>t.n+" ("+t.left+"m left)").join(", ")}.`:" Everything fit.");
+}else{
+for(const[a,b]of gs){free+=b-a;h+=box(a,b,"open",b-a>=15?`Open · ${b-a} min`:"")}
+document.getElementById("sum").textContent=`${free} min open across ${gs.length} gaps. Tap “Plan my day”.`;
+}
+if(nowT>D0)h+=`<div class="past" style="height:${(nowT-D0)*PX}px"></div><div class="nowl" style="top:${(nowT-D0)*PX}px"></div>`;
+document.getElementById("tl").innerHTML=h;
+document.getElementById("nv").textContent=f(now);
+document.getElementById("nh").textContent=day===0?"Mon is today":"Clock applies to Mon";
+renderAct();
+}
+document.getElementById("tabs").onclick=e=>{const d=e.target.dataset.d;if(d!=null){day=+d;sel=offer=null;render()}};
+document.getElementById("plan").onclick=()=>{planned=!planned;document.getElementById("plan").textContent=planned?"Plan my day":"Plan my day";render()};
+document.getElementById("shuf").onclick=()=>{seeds[day]=Math.floor(Math.random()*9999);st[day]=null;sel=offer=null;render()};
+document.getElementById("sl").onchange=render;
+document.getElementById("rst").onclick=()=>{st[day]=null;sel=offer=null;render()};
+document.getElementById("nw").oninput=e=>{now=+e.target.value;render()};
+function freeze(){
+const S=S0(),T=day===0?now:D0,keep=[],w={};
+for(const b of curAll){
+if(b.s>=T)continue;
+const e=Math.min(b.e,T),c={...b,e};
+if(b.t&&b.t.freed){w[b.t.id]=(w[b.t.id]||0)+e-b.s;keep.push({s:b.s,e,open:1});continue}
+if(b.t){c.t={id:b.t.id,n:b.t.n,c:b.t.c};w[b.t.id]=(w[b.t.id]||0)+e-b.s}
+keep.push(c);
+}
+S.past=keep;S.worked=w;S.t0=T;
+}
+function overdue(){
+if(day!==0)return null;
+const S=S0(),end={};
+for(const b of curAll){if(b.t&&!b.t.freed){end[b.t.id]=Math.max(end[b.t.id]||0,b.e)}}
+let best=null;
+for(const t of TASKS){if(S.done[t.id]||S.conf[t.id]||!end[t.id]||end[t.id]>now)continue;if(!best||end[t.id]<best.e)best={t,e:end[t.id]}}
+return best;
+}
+function renderAct(){
+const S=S0(),el=document.getElementById("act");
+if(offer){el.innerHTML=`<div class="act"><span>Marked done. ${offer.m} min freed up. Pull the next tasks forward?</span><div class="ab"><button data-a="pull" class="on">Pull forward</button><button data-a="keep">Keep as buffer</button></div></div>`;return}
+let t=TASKS.find(x=>x.id===sel),why="";dueId=null;
+if(t&&S.done[t.id])t=null;
+if(!t){const d=overdue();if(d){t=d.t;dueId=t.id;why=` was due at ${f(d.e)}.`}}
+if(!t){el.innerHTML="";return}
+el.innerHTML=`<div class="act"><span><b>${t.n}</b>${why?why+" Finished?":": finished?"}</span><div class="ab"><button data-a="done" class="on">Done</button><span class="hint">Needs more time:</span><button data-a="add" data-m="15">+15m</button><button data-a="add" data-m="30">+30m</button><button data-a="add" data-m="60">+1h</button>${why?"":`<button data-a="x">Close</button>`}</div></div>`;
+}
+document.getElementById("tl").onclick=e=>{const b=e.target.closest("[data-id]");if(!b)return;offer=null;sel=+b.dataset.id;render()};
+document.getElementById("act").onclick=e=>{const a=e.target.closest("[data-a]");if(!a)return;const S=S0(),k=a.dataset.a;
+const id=sel!=null?sel:dueId;
+if(k==="done"){const t=TASKS.find(x=>x.id===id);freeze();const left=t.m+(S.extra[id]||0)-(S.worked[id]||0);S.done[id]=1;if(left>0){S.hold[id]=1;offer={m:left}}sel=null}
+else if(k==="add"){freeze();S.extra[id]=(S.extra[id]||0)+ +a.dataset.m;sel=null}
+else if(k==="pull"){S.hold={};offer=null}
+else if(k==="keep"){offer=null}
+else sel=null;
+render()};
+const saved=load();
+document.getElementById("txt").value=saved!==null?saved:DEFAULT_TXT;
+TASKS=parse(document.getElementById("txt").value);
+document.getElementById("apply").onclick=()=>{const v=document.getElementById("txt").value;save(v);TASKS=parse(v);planned=true;render()};
+render();
+</script>
+</body>
+</html>
